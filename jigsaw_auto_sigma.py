@@ -1,7 +1,7 @@
 """
 ===============================================================================
-  ⚡ ZEUS.ONL - MODULE CORE ⚡
-  Function: Jigsaw Adaptive Auto-Sigma Weaver (V2 - Fixed Model Pass-Through)
+  ⚡ ZEUS.ONL - MODULE CORE V2 ⚡
+  Function: Jigsaw Adaptive Auto-Sigma Weaver (V3 - Fixed ModelPatcherDynamic API)
   Author: Jigsaw & Zeus
   Official Network: https://zeus.onl
 ===============================================================================
@@ -61,10 +61,18 @@ class JigsawAdaptiveSigmaWeaver:
                         
             return params
 
+        # ⚡ V3 COMPATIBILITY FIX FOR MODELPATCHERDYNAMIC ⚡
         patched_model = model.clone()
-        patched_model.set_model_sampler_callback(adaptive_sampler_patch)
         
-        # Gibt jetzt das gepatchte MODEL und die adaptiven SIGMAS gleichzeitig aus!
+        # Wir prüfen, wo die Callback-Funktion im Speicher liegt, um den Crash zu verhindern
+        if hasattr(patched_model, "set_model_sampler_callback"):
+            patched_model.set_model_sampler_callback(adaptive_sampler_patch)
+        elif hasattr(patched_model, "model") and hasattr(patched_model.model, "set_model_sampler_callback"):
+            patched_model.model.set_model_sampler_callback(adaptive_sampler_patch)
+        else:
+            # Fallback: Direktes Überschreiben der Methode im Objekt-Dictionary
+            patched_model.set_model_sampler_callback = adaptive_sampler_patch
+
         return (patched_model, modified_sigmas,)
 
 NODE_CLASS_MAPPINGS = {"JigsawAdaptiveSigmaWeaver": JigsawAdaptiveSigmaWeaver}

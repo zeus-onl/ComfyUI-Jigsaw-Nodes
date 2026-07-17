@@ -29,9 +29,7 @@ The node acts as a bridge between your Model Loader, your Sigmas provider, and y
 
 ## 🎛️ Parameters Explained
 
-* **`sensitivity`** *(Default: 1.0)*: Adjusts the frequency radar threshold. Higher values make the node react much earlier to micro-noise and texture tearing.
-* **`damping_factor`** *(Default: 0.65)*: Controls the intensity of the noise compression once a peak is detected. Lower values apply a stronger smoothing/matte effect; higher values (e.g., `0.72`) let more of the model's raw textural grains pass through.
-* **`start_adapt_step`** *(Default: 4)*: The exact inference step where the live FFT scanning becomes active. In a multi-pass or split-sampler workflow (e.g., a 6-to-2 step split), set this to the exact step where your primary sampler ends and your resampler takes over.
+* **`auto_smoothness`** *(Default: 1.0)*: Adjusts the frequency radar threshold. Higher values make the node react much earlier to micro-noise and texture tearing.
 
 ---
 

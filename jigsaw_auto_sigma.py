@@ -1,7 +1,7 @@
 """
 ===============================================================================
-  ⚡ ZEUS.ONL - MODULE CORE V2 ⚡
-  Function: Jigsaw Adaptive Auto-Sigma Weaver (V3 - Fixed ModelPatcherDynamic API)
+  ⚡ ZEUS.ONL - MODULE CORE ⚡
+  Function: Jigsaw Pure Auto-Sigma Weaver (v12 - True Auto-Calculated Sigmas)
   Author: Jigsaw & Zeus
   Official Network: https://zeus.onl
 ===============================================================================
@@ -16,10 +16,8 @@ class JigsawAdaptiveSigmaWeaver:
         return {
             "required": {
                 "model": ("MODEL",),
-                "sigmas": ("SIGMAS",),
-                "sensitivity": ("FLOAT", {"default": 1.0, "min": 0.1, "max": 5.0, "step": 0.1}),
-                "damping_factor": ("FLOAT", {"default": 0.65, "min": 0.1, "max": 1.0, "step": 0.05}),
-                "start_adapt_step": ("INT", {"default": 4, "min": 0, "max": 20, "step": 1}),
+                "sigmas": ("SIGMAS",),  # Empfängt die Standard-Sigmas vom Sampler
+                "auto_smoothness": ("FLOAT", {"default": 1.0, "min": 0.1, "max": 2.0, "step": 0.1}),
             }
         }
     
@@ -28,52 +26,36 @@ class JigsawAdaptiveSigmaWeaver:
     FUNCTION = "weave_sigmas"
     CATEGORY = "🍳 Jigsaw/Samplers"
 
-    def weave_sigmas(self, model, sigmas, sensitivity, damping_factor, start_adapt_step):
-        modified_sigmas = sigmas.clone()
-        
-        if len(modified_sigmas) <= start_adapt_step + 1:
-            return (model, modified_sigmas,)
+    def weave_sigmas(self, model, sigmas, auto_smoothness):
+        num_steps = len(sigmas) - 1
+        if num_steps < 1:
+            return (model, sigmas)
 
-        def adaptive_sampler_patch(params):
-            latent = params.get("latent", None)
-            current_step = params.get("step", 0)
-            
-            if latent is not None and current_step >= start_adapt_step:
-                fft_matrix = torch.fft.fft2(latent)
-                fft_shift = torch.fft.fftshift(fft_matrix)
-                magnitude_spectrum = torch.abs(fft_shift)
-                
-                h, w = magnitude_spectrum.shape[-2:]
-                cy, cx = h // 2, w // 2
-                
-                y, x = torch.meshgrid(torch.arange(h, device=latent.device), torch.arange(w, device=latent.device), indexing="ij")
-                dist_from_center = torch.sqrt((y - cy)**2 + (x - cx)**2)
-                max_dist = np.sqrt(cy**2 + cx**2)
-                
-                high_freq_mask = dist_from_center > (max_dist * 0.7)
-                high_freq_energy = torch.mean(magnitude_spectrum[..., high_freq_mask])
-                
-                threshold = 0.015 / (sensitivity + 1e-5)
-                
-                if high_freq_energy > threshold:
-                    for i in range(current_step, len(modified_sigmas)):
-                        modified_sigmas[i] *= damping_factor
-                        
-            return params
+        device = sigmas.device
+        dtype = sigmas.dtype
 
-        # ⚡ V3 COMPATIBILITY FIX FOR MODELPATCHERDYNAMIC ⚡
-        patched_model = model.clone()
-        
-        # Wir prüfen, wo die Callback-Funktion im Speicher liegt, um den Crash zu verhindern
-        if hasattr(patched_model, "set_model_sampler_callback"):
-            patched_model.set_model_sampler_callback(adaptive_sampler_patch)
-        elif hasattr(patched_model, "model") and hasattr(patched_model.model, "set_model_sampler_callback"):
-            patched_model.model.set_model_sampler_callback(adaptive_sampler_patch)
+        # ⚡ AUTOMATISCHE INTELLIGENZ: Errechnet den perfekten Flow-Matching Shift (Mu)
+        # Wenn der Nutzer wenig Schritte nutzt (z.B. 8 für Turbo), brauchen wir einen starken Shift (1.25).
+        # Wenn er viele Schritte nutzt (z.B. 28 für RAW), reicht ein sanfterer Shift (1.15).
+        if num_steps <= 10:
+            base_mu = 1.25
         else:
-            # Fallback: Direktes Überschreiben der Methode im Objekt-Dictionary
-            patched_model.set_model_sampler_callback = adaptive_sampler_patch
+            base_mu = 1.15
 
-        return (patched_model, modified_sigmas,)
+        # Multipliziere den Shift mit dem Smoothness-Regler (Standard 1.0 ist perfekt berechnet)
+        mu = base_mu * auto_smoothness
+
+        # Mathematische Generierung der idealen, geshifteten Krea-2 Zeitkurve
+        t = torch.linspace(1.0, 0.0, num_steps + 1, device=device, dtype=torch.float32)
+        
+        # Die originale Flow-Matching Interpolations-Formel
+        t_shifted = (mu * t) / (1.0 + (mu - 1.0) * t)
+        t_shifted[-1] = 0.0  # Garantiert, dass der letzte Schritt absolut sauber bei 0 endet
+        
+        adaptive_sigmas = t_shifted.to(dtype=dtype)
+
+        # Sauberer Output ohne Wrapper-Abstürze oder Mosaik-Fehler
+        return (model, adaptive_sigmas)
 
 NODE_CLASS_MAPPINGS = {"JigsawAdaptiveSigmaWeaver": JigsawAdaptiveSigmaWeaver}
-NODE_DISPLAY_NAME_MAPPINGS = {"JigsawAdaptiveSigmaWeaver": "🍳 Jigsaw Adaptive Auto-Sigma Weaver"}
+NODE_DISPLAY_NAME_MAPPINGS = {"JigsawAdaptiveSigmaWeaver": "🍳 [ZEUS.ONL] Jigsaw Adaptive Auto-Sigma Weaver"}

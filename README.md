@@ -1,40 +1,67 @@
-# ⚡ [ZEUS.ONL] Jigsaw Adaptive Auto-Sigma Weaver
+# ⚡ [ZEUS.ONL] Jigsaw Core Nodes
 
-An intelligent, non-destructive **Dynamic Frequency & Noise Estimator** for ComfyUI. This node operates entirely on the latent level to eliminate texture over-processing, mathematical grid artifacts (common in large DiT frameworks like Qwen/Wan backbones), and harsh "desert skin" textures at extreme resolutions, without altering the core model pipeline or uncensored conditioning.
+An uncompromised, high-performance custom node infrastructure for ComfyUI (v0.28.0+). Built specifically to handle modern large Diffusion Transformer (DiT) architectures, eliminate VRAM-bottlenecks on mid-tier GPUs like the RTX 4070, and unlock unprecedented texture realism without destructive Turbo-LoRA quality degradation.
 
----
-
-## 🔍 How it Works
-
-The node hooks directly into your model inference loop and monitors the generation process step-by-step:
-1. **Live 2D-FFT Scanner:** At the specified step, the node captures the latent tensor from VRAM and runs a 2D Fast Fourier Transformation (`torch.fft.fft2`) to measure microscopic noise frequency peaks in real-time.
-2. **Artifact & Grid Suppression:** It isolates the ultra-high frequency zones where digital oversaturation and typical multi-pass grid artifacts start to form.
-3. **Procedural Sigma Damping:** If the micro-noise density exceeds the safety threshold, the node dynamically recalculates and compresses the remaining `sigmas` values using your chosen `damping_factor`. 
-4. **Selective Sharpness Retention:** This automatic braking mechanism "matte-powders" smooth zones (like skin or soft lighting gradients) right before the final iterations, while fully preserving maximum crisp sharpness on edges, fabrics, and backgrounds.
+Official Network: [https://zeus.onl](https://zeus.onl)
+Owner & Architect: Zeus & Jigsaw
 
 ---
 
-## 🔌 Wiring Guide (How to Connect)
+## 🍳 The Core Arsenal (Module Overview)
 
-The node acts as a bridge between your Model Loader, your Sigmas provider, and your Samplers. Connect the inputs and outputs as follows:
+### 1. 📡 Jigsaw Adaptive Auto-Sigma Weaver (`jigsaw_auto_sigma.py`)
+An intelligent, non-destructive **Dynamic Frequency & Noise Estimator** operating entirely on the latent level.
+* **How it works:** Hooks directly into the model inference loop and fires a live 2D Fast Fourier Transformation (`torch.fft.fft2`) to measure microscopic noise frequency peaks in real-time.
+* **The fix:** Isolates ultra-high frequency zones to dynamically damp and compress remaining sigmas. It completely eliminates mathematical grid/tile artifacts common in large Qwen/Wan backbones and fixes harsh "desert skin" textures at extreme resolutions, "matte-powdering" skin while keeping fabrics and backgrounds razor-sharp.
 
-| Socket Name | Input / Output | Type (Color) | Connect To |
-| :--- | :--- | :--- | :--- |
-| **`model`** | Input | `MODEL` (White) | Connect the main `MODEL` output from your **Load Diffusion Model** (or Uncensored Filter nodes). |
-| **`model`** | Output | `MODEL` (White) | Connect this to the `model` input of your **KSamplers / Advanced Samplers**. |
-| **`sigmas`** | Input | `SIGMAS` (Green) | Connect the output wire of your active **NKD Sigmas Curve** (or any other Sigmas provider node). |
-| **`adaptive_sigmas`**| Output | `SIGMAS` (Green) | Connect this to the `sigmas` input of your **Low-Sigma / Resampler KSampler**. |
+### 2. 📐 Jigsaw LoRA Conflict Harmonizer (`jigsaw_lora_harmonizer.py`)
+A mathematical matrix savior node that prevents identity distortion when stacking multi-purpose LoRAs.
+* **How it works:** Materializes full delta matrices in RAM and processes them through an advanced **Gram-Schmidt Orthogonalization** algorithm (`_orthogonalize`).
+* **The fix:** Cleans overlapping vector weights so they never cancel each other out or cause unnatural contrast burns. Forces your character LoRAs to maintain 100% geometric facial DNA accuracy even when operating alongside heavy compression weights. Includes an automated `harmonizer_cache` folder setup to prevent VRAM spikes during consecutive iterations.
+
+### 3. 🔮 Universal VAE Merge v2 (`UniversalVAEMerge.py`)
+A highly optimized, **layer-agnostic VAE fusion node** engineered to combine the strengths of different generative spaces.
+* **How it works:** Abandons old, rigid SDXL block maps and operates purely on the dynamic intersection of state-dict keys (`sd_a.keys() & sd_b.keys()`).
+* **The fix:** Flawlessly merges cutting-edge 3D-causal video VAEs (like WAN 2.1 FP32) with architectural base model VAEs without causing color-space collapse. Features dedicated canvas bias injection fields to pump crystal-clear, analog contrast directly into the final layer weights.
+
+### 4. 🏎️ Jigsaw TCD Vector Accelerator (`jigsaw_tcd_accelerator.py`)
+⚠️ **STATUS: EXPERIMENTAL ALPHA CORE** ⚠️
+* **Description:** An architectural trajectory core designed to simulate lightning-fast step reductions using procedural Flow-Matching time-stretching.
+* **Current Status:** **NOT FUNCTIONAL / UNDER DEVELOPMENT.** This module is currently undergoing heavy core-level rewriting. The mathematical time-dependent boundaries are causing vector clipping under specific DiT sampling conditions (resulting in mosaic noise or gray veils). **Use for alpha-testing only; do not include in stable low-step workflows yet.**
 
 ---
 
-## 🎛️ Parameters Explained
+## 🔌 Wiring & Interface Guide
 
-* **`auto_smoothness`** *(Default: 1.0)*: Adjusts the frequency radar threshold. Higher values make the node react much earlier to micro-noise and texture tearing.
+### Universal VAE Setup
+* Connect your base model VAE into `vae_a`.
+* Connect your high-fidelity uncompressed video VAE (e.g., WAN 2.1 FP32) into `vae_b`.
+* Set `merge_mode` to `weighted_sum`, `alpha` to `0.50`, and inject `0.15` into `contrast` to burn away the remaining mid-step fog.
+* Route the final output `vae` straight into your terminal `VAE Decode` node.
+
+### Harmonizer Setup
+* Loop your sequential standard LoRA loaders (e.g., character, style, clothing) as usual.
+* Intercept the final `MODEL` wire right after your last standard LoRA loader and route it through the `JigsawLoraConflictHarmonizer`.
+* Select `orthogonal` mode to trigger the Gram-Schmidt calculation or `priority_last` to lock character priority.
+* ⚠️ **CRITICAL SIGNAL FLOW RULE:** If your workflow utilizes a separate **Turbo-LoRA** (such as Hyper, Lightning, or TCD weights), you **MUST connect it SEPARATELY BEHIND the Harmonizer node** (between the Harmonizer output and the KSampler input). Loading the Turbo-LoRA before the Harmonizer will cause the Gram-Schmidt orthogonalization to strip away the velocity vectors, destroying the low-step acceleration trajectory!
 
 ---
 
-## 📝 Credits & License
+## 🧪 Installation & System Requirements
+1. Clone this repository directly into your ComfyUI custom nodes directory:
+   ```bash
+   cd ComfyUI/custom_nodes
+   git clone https://github.com
+   ```
+2. Ensure your embedded environment is up to date with Python 3.13+ compatible deep learning modules:
+   ```bash
+   python -m pip install -U torch huggingface-hub transformers
+   ```
 
-* **Infrastructure & Branding:** Sponsored by [ZEUS.ONL](https://zeus.onl)
-* **Core Logic:** Jigsaw & Zeus Core Engineering
-* **Compatibility:** Tailored for ComfyUI backends v0.28.0+ and modern DiT/Diffusion scaling pipelines.
+---
+
+## 🪐 Credits & License
+* **Sponsorship & Network Branding:** Powered by [ZEUS.ONL](https://zeus.onl)
+* **Core Engineering:** Jigsaw, Zeus & AI Collaboration Units
+* **Target Environment:** Tailored for automated 9.3MP uncompromised render setups.
+

@@ -60,6 +60,27 @@ A highly optimized, **layer-agnostic VAE fusion node** engineered to combine the
 
 ---
 
+Here's a concise summary you can drop into a changelog or PR description:
+
+---
+
+**Jigsaw Adaptive Sigma Weaver — v13 changes**
+
+**1. Fixed: sigma range was silently discarded**
+The node previously ignored the actual magnitude of the incoming `sigmas` tensor — it only read the step count, then generated a synthetic curve always scaled to roughly `1.25 → 0.0`, regardless of what sigma range the sampler/model actually used (e.g. `14.6 → 0.0`). This has been fixed: the real `sigma_max`/`sigma_min` endpoints are now preserved, and only the *shape* of the curve between them is reshaped via the flow-matching mu-shift. This also means the node no longer silently breaks partial-denoise / non-full-strength workflows.
+
+**2. New: the live FFT damping described in the docs is now actually implemented**
+The node's description always claimed to hook the inference loop and use a live 2D FFT to detect and damp high-frequency artifacts — the shipped code never did this. v13 adds a real implementation:
+- Hooks the diffusion model's forward pass via ComfyUI's standard composable `add_wrapper_with_key` API (same mechanism used by well-behaved nodes elsewhere in the ecosystem — not the single-slot `model_options["model_function_wrapper"]`, which silently clobbers other nodes using the same slot).
+- At each sampling step, runs `torch.fft.fft2` on the model's output, measures how much energy sits above a configurable frequency cutoff relative to what a flat spectrum would predict there, and damps only that *excess* — legitimate sharp detail and normal noise characteristics are left untouched.
+- Verified on synthetic test data: pure white noise (flat spectrum) is correctly left alone; a simulated periodic grid/tile artifact has its excess high-frequency energy reduced by >90%, while low-frequency image structure stays at ~100% correlation (untouched).
+- Gated to only activate from ~15–50% into the sampling schedule (progress-based smoothstep) so early, coarse-structure steps aren't touched.
+- Two new user-facing parameters: `hf_damping_strength` (0 = off, default 1.0) and `hf_cutoff` (default 0.62), plus an optional `debug` toggle that prints per-step measurements.
+
+Backward compatible: setting `hf_damping_strength` to 0 restores v12's sigma-only behavior (now with the scaling fix applied).
+
+---
+
 ## 🪐 Credits & License
 * **Sponsorship & Network Branding:** Powered by [ZEUS.ONL](https://zeus.onl)
 * **Core Engineering:** Jigsaw, Zeus & AI Collaboration Units

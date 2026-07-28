@@ -1,10 +1,19 @@
 """
 ===============================================================================
   ⚡ ZEUS.ONL - VAEMERGE CORE ⚡
-  Function: Universal VAE Merge (v6 - Fully Switchable Block-Chirurgie Core)
+  Function: Universal VAE Merge (v7 - Full FP32 Signal, No Silent Downcast)
   Author: Jigsaw & Zeus
   Official Network: https://zeus.onl
 ===============================================================================
+
+FIX ggue. v6: Vorher wurde nach der FP32-Merge-Rechnung jeder Tensor wieder
+auf sd_a[key].dtype zurueckgecastet (meist FP16, z.B. bei
+ema_vae_fp16.safetensors). Das rundet kleine gewichtete Beitraege von vae_b/
+vae_c beim Zurueckcasten praktisch weg - der Merge "wirkte" dann nur, wenn
+man vae_a selbst aenderte, weil vae_b/vae_c's Einfluss von der FP16-Rundung
+gefiltert wurde. Jetzt: das gemergte Ergebnis bleibt durchgehend FP32, kein
+Downcast mehr auf den Original-dtype von vae_a. Volles Signal, keine
+Filterung.
 """
 
 import torch
@@ -78,8 +87,10 @@ class UniversalVAEMerge:
         #  ⚡ MODUS 1: REINES SINGLE-VAE TUNING (1 VAE)
         # ===============================================================================
         if number_of_vaes == "1":
-            print("[ZEUS.ONL VAE-MERGE] Modus 1 aktiv: Passe nur Helligkeit/Kontrast für VAE_A an...")
-            merged_sd = {k: v.clone() for k, v in sd_a.items()}
+            print("[ZEUS.ONL VAE-MERGE] Modus 1 aktiv: Passe nur Helligkeit/Kontrast für VAE_A an (FP32)...")
+            # FIX: auch im Single-VAE Modus auf FP32 hochcasten, damit
+            # Brightness/Contrast nicht auf ggf. FP16-Praezision aufsetzen.
+            merged_sd = {k: v.detach().cpu().float().clone() for k, v in sd_a.items()}
             
         # ===============================================================================
         #  ⚡ MODUS 2 & 3: MULTI-VAE FUSION (2 ODER 3 VAEs)
@@ -98,7 +109,7 @@ class UniversalVAEMerge:
             if number_of_vaes == "3":
                 ckpt_keys = ckpt_keys & sd_c.keys()
 
-            print(f"[ZEUS.ONL VAE-MERGE] Fusioniere {len(ckpt_keys)} Keys...")
+            print(f"[ZEUS.ONL VAE-MERGE] Fusioniere {len(ckpt_keys)} Keys (FP32, kein Downcast)...")
             merged_sd = {}
 
             for key in tqdm(ckpt_keys):
@@ -137,7 +148,12 @@ class UniversalVAEMerge:
                     elif merge_mode in ["add_difference", "ties_add_difference"]:
                         merged_sd[key] = a + (b - c) * current_alpha
 
-                merged_sd[key] = merged_sd[key].to(dtype=sd_a[key].dtype, device=sd_a[key].device)
+                # FIX: KEIN Downcast mehr auf sd_a[key].dtype - das gemergte
+                # Ergebnis bleibt FP32 (volles Signal, ungefiltert). Vorher
+                # wurde hier auf den Original-dtype (oft FP16) zurueckgecastet,
+                # wodurch kleine gewichtete Beitraege von vae_b/vae_c beim
+                # Runden praktisch verschwanden.
+                merged_sd[key] = merged_sd[key].to(dtype=torch.float32, device=sd_a[key].device)
 
         # ===============================================================================
         #  🎨 GLOBALER KONTRAST & BRIGHTNESS INJEKTOR (Kugelsicher für alle VAEs)
@@ -155,8 +171,15 @@ class UniversalVAEMerge:
         if weight_key is not None:
             merged_sd[weight_key] = nn.Parameter(merged_sd[weight_key] + contrast / 40.0)
 
+        # Sicherheitsnetz: JEDER Tensor im finalen state_dict wird nochmal
+        # explizit auf FP32 geprueft/gecastet, egal aus welchem Pfad
+        # (Modus 1, 2 oder 3) er kam - kein stiller Downcast irgendwo mehr.
+        for k in merged_sd.keys():
+            if torch.is_tensor(merged_sd[k]) and merged_sd[k].dtype != torch.float32:
+                merged_sd[k] = merged_sd[k].to(dtype=torch.float32)
+
         comfy_vae = comfy.sd.VAE(merged_sd)
         return (comfy_vae,)
 
 NODE_CLASS_MAPPINGS = {"UniversalVAEMerge": UniversalVAEMerge}
-NODE_DISPLAY_NAME_MAPPINGS = {"UniversalVAEMerge": "🔮 ⚡ [ZEUS.ONL] Universal VAE Merge v6"}
+NODE_DISPLAY_NAME_MAPPINGS = {"UniversalVAEMerge": "🔮 ⚡ [ZEUS.ONL] Universal VAE Merge v7 (FP32)"}

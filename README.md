@@ -1,4 +1,4 @@
-# ⚡ [ZEUS.ONL] Jigsaw Core Nodes
+# ⚡ [ZEUS.ONL] Jigsaw Core Nodes 
 
 An uncompromised, high-performance custom node infrastructure for ComfyUI (v0.28.0+). Built specifically to handle modern large Diffusion Transformer (DiT) architectures, eliminate VRAM-bottlenecks on mid-tier GPUs like the RTX 4070, and unlock unprecedented texture realism without destructive Turbo-LoRA quality degradation.
 
@@ -64,7 +64,7 @@ Here's a concise summary you can drop into a changelog or PR description:
 
 ---
 
-**Jigsaw Adaptive Sigma Weaver — v13 changes**
+**Jigsaw Adaptive Sigma Weaver — v13 changes** Update for ComfyUI 0.29.0
 
 **1. Fixed: sigma range was silently discarded**
 The node previously ignored the actual magnitude of the incoming `sigmas` tensor — it only read the step count, then generated a synthetic curve always scaled to roughly `1.25 → 0.0`, regardless of what sigma range the sampler/model actually used (e.g. `14.6 → 0.0`). This has been fixed: the real `sigma_max`/`sigma_min` endpoints are now preserved, and only the *shape* of the curve between them is reshaped via the flow-matching mu-shift. This also means the node no longer silently breaks partial-denoise / non-full-strength workflows.

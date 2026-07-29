@@ -131,10 +131,19 @@ def _damp_excess_high_frequency(out, strength, hf_cutoff, progress_gate_lo, prog
 
 
 def _make_hf_damp_wrapper(strength, hf_cutoff, progress_gate_lo, progress_gate_hi, debug):
-    def wrapper(executor, x, timesteps, context, attention_mask=None, transformer_options=None, **kwargs):
-        out = executor(x, timesteps, context, attention_mask, transformer_options, **kwargs)
+    def wrapper(executor, *args, **kwargs):
+        # Positional-arg-count-agnostic: newer ComfyUI cores have inserted
+        # extra positional params (e.g. ref_latents) into the diffusion_model
+        # forward signature between attention_mask and transformer_options.
+        # Rather than hardcoding an exact positional layout that breaks on
+        # every such core change, just pass everything straight through and
+        # pull transformer_options out by keyword-or-scan instead.
+        out = executor(*args, **kwargs)
         if strength <= 0.0:
             return out
+        transformer_options = kwargs.get("transformer_options")
+        if transformer_options is None:
+            transformer_options = next((a for a in args if isinstance(a, dict)), {})
         return _damp_excess_high_frequency(
             out, strength, hf_cutoff, progress_gate_lo, progress_gate_hi, transformer_options, debug)
     return wrapper
